@@ -1,0 +1,45 @@
+name: rafiqflutter
+description: "RAFIQ - رفيق: Islamic launcher (Flutter proof of concept)"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/quran.json
+    - assets/adhkar.json
+    - assets/assistant_answers.json
+  fonts:
+    - family: Tajawal
+      fonts:
+        - asset: assets/fonts/tajawal_light.ttf
+          weight: 300
+        - asset: assets/fonts/tajawal_regular.ttf
+          weight: 400
+        - asset: assets/fonts/tajawal_medium.ttf
+          weight: 500
+        - asset: assets/fonts/tajawal_bold.ttf
+          weight: 700
+        - asset: assets/fonts/tajawal_extrabold.ttf
+          weight: 800
+    - family: Amiri
+      fonts:
+        - asset: assets/fonts/amiri_regular.ttf
+          weight: 400
+        - asset: assets/fonts/amiri_bold.ttf
+          weight: 700
