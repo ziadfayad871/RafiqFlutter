@@ -107,7 +107,7 @@ class LauncherChannel(private val context: Context) : MethodChannel.MethodCallHa
                 "icon" to drawableToBytes(info.loadIcon(context.packageManager))
             )
         }
-        apps.sortedWith(compareBy(collator) { (it["label"] as String) })
+        return apps.sortedWith(compareBy(collator) { (it["label"] as String) })
     }
 
     private fun loadDockApps(): List<Map<String, Any?>> {
@@ -133,15 +133,17 @@ class LauncherChannel(private val context: Context) : MethodChannel.MethodCallHa
         }
     }
 
-    private fun drawableToBytes(drawable: Drawable?): ByteArray? = runCatching {
+    private fun drawableToBytes(drawable: Drawable?): ByteArray? {
         if (drawable == null) return null
-        val size = 96
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        drawable.setBounds(0, 0, size, size)
-        drawable.draw(canvas)
-        val output = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
-        output.toByteArray()
-    }.getOrNull()
+        return runCatching {
+            val size = 96
+            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            drawable.setBounds(0, 0, size, size)
+            drawable.draw(canvas)
+            val output = ByteArrayOutputStream()
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
+            output.toByteArray()
+        }.getOrNull()
+    }
 }

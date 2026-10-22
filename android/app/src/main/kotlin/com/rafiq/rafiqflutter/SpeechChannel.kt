@@ -79,7 +79,13 @@ class SpeechChannel(
                 tts?.language = Locale("ar")
                 val pending = pendingSpeak
                 pendingSpeak = null
-                if (pending != null) speak(pending.first, pending.second, MethodChannel.Result { _, _ -> })
+                if (pending != null) {
+                    speak(pending.first, pending.second, object : MethodChannel.Result {
+                        override fun success(result: Any?) = Unit
+                        override fun error(code: String, message: String?, details: Any?) = Unit
+                        override fun notImplemented() = Unit
+                    })
+                }
             }
         }
     }
