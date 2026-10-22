@@ -24,6 +24,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/quran.json
+    - assets/mushaf_pages.json
     - assets/adhkar.json
     - assets/assistant_answers.json
   fonts:

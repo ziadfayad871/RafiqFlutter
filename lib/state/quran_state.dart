@@ -191,6 +191,19 @@ class QuranState extends ChangeNotifier {
     _savePosition(surah, ayah);
   }
 
+  void onMushafPosition(int surah, int ayah) {
+    final current = data;
+    if (current == null) return;
+    if (surah < 1 || surah > current.surahs.length) return;
+    final targetSurah = current.surahs[surah - 1];
+    if (targetSurah.verses.isEmpty) return;
+    final clamped = ayah.clamp(1, targetSurah.verses.length);
+    surahNumber = surah;
+    currentAyah = clamped;
+    _savePosition(surah, clamped);
+    _notify();
+  }
+
   bool isBookmarked(int surah, int ayah) {
     return bookmarks.any(
       (bookmark) =>

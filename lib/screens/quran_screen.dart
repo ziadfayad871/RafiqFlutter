@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../data/mushaf.dart';
 import '../data/repositories.dart';
 import '../state/app_state.dart';
 import '../state/quran_state.dart';
@@ -9,6 +10,7 @@ import '../theme/palette.dart';
 import '../theme/rafiq_theme.dart';
 import '../theme/typography.dart';
 import '../widgets/components.dart';
+import '../widgets/mushaf_view.dart';
 import '../widgets/rafiq_icons.dart';
 import '../widgets/top_bar.dart';
 
@@ -22,6 +24,8 @@ class QuranScreen extends StatefulWidget {
 class _QuranScreenState extends State<QuranScreen> {
   final ScrollController _scrollController = ScrollController();
   final Map<int, GlobalKey> _verseKeys = <int, GlobalKey>{};
+  final GlobalKey<MushafReaderState> _readerKey = GlobalKey<MushafReaderState>();
+  (int, int)? _pendingMushafJump;
 
   QuranState? _state;
   Timer? _messageTimer;
@@ -72,15 +76,20 @@ class _QuranScreenState extends State<QuranScreen> {
     _syncTransientMessage(state);
     final request = state.scrollRequest;
     if (request != null) {
-      if (_pendingScrollAyah != request ||
-          _pendingScrollSurah != state.surahNumber) {
-        _pendingScrollAyah = request;
-        _pendingScrollSurah = state.surahNumber;
-        _scheduleScrollTo(state.surahNumber, request);
+      if (state.mode == 0) {
+        _pendingMushafJump = (state.surahNumber, request);
+        state.consumeScrollRequest();
+      } else {
+        if (_pendingScrollAyah != request ||
+            _pendingScrollSurah != state.surahNumber) {
+          _pendingScrollAyah = request;
+          _pendingScrollSurah = state.surahNumber;
+          _scheduleScrollTo(state.surahNumber, request);
+        }
+        _pendingScrollAyah = null;
+        _pendingScrollSurah = null;
+        state.consumeScrollRequest();
       }
-      _pendingScrollAyah = null;
-      _pendingScrollSurah = null;
-      state.consumeScrollRequest();
     }
     setState(() {});
   }
@@ -291,13 +300,171 @@ class _QuranScreenState extends State<QuranScreen> {
     );
   }
 
+  Set<MushafAyahRef> _mushafBookmarks(QuranState state) {
+    return <MushafAyahRef>{
+      for (final bookmark in state.bookmarks)
+        MushafAyahRef(bookmark.surahNumber, bookmark.ayahNumber),
+    };
+  }
+
+  void _scheduleMushafJump() {
+    if (_pendingMushafJump == null) return;    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final jump = _pendingMushafJump;
+      if (jump == null) return;
+      final reader = _readerKey.currentState;
+      if (reader == null) return;
+      reader.jumpToAyah(jump.$1, jump.$2);
+      _pendingMushafJump = null;
+    });
+  }
+
+  List<Widget> _buildReaderBody(
+    BuildContext context,
+    QuranState state,
+    QuranSurah surah,
+  ) {
+    _scheduleMushafJump();
+    final palette = RafiqThemeScope.of(context);
+    final showTranslation = state.showTranslation;
+    return [
+      Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: [
+              SegmentedPill(
+                options: const ['المصحف', 'الترجمة'],
+                selectedIndex: state.mode,
+                onSelected: state.setMode,
+              ),
+              const SizedBox(height: 12),
+              if (!showTranslation)
+                Expanded(
+                  child: MushafReader(
+                    key: _readerKey,
+                    surahs: state.surahs,
+                    startSurah: state.surahNumber,
+                    startAyah: state.currentAyah,
+                    bookmarks: _mushafBookmarks(state),
+                    playingSurah: state.audioPhase == QuranAudioPhase.idle
+                        ? 0
+                        : state.surahNumber,
+                    playingAyah: state.audioPhase == QuranAudioPhase.idle
+                        ? null
+                        : state.playingAyah,
+                    onPosition: (surahNumber, ayah) {
+                      state.onMushafPosition(surahNumber, ayah);
+                    },
+                    onPlayFrom: (surahNumber, ayah) {
+                      state.onMushafPosition(surahNumber, ayah);
+                      unawaited(state.playAyah(ayah));
+                    },
+                    onBookmark: (surahNumber, ayah) {
+                      unawaited(state.toggleBookmark(surahNumber, ayah));
+                    },
+                  ),
+                )
+              else ...[
+                Column(
+                  children: [
+                    Text(
+                      'سورة ${surah.name}',
+                      style: RafiqText.ornamentTitle.copyWith(
+                        color: palette.gold,
+                      ),
+                    ),
+                    Text(
+                      '${surah.versesCount} آية • ${surah.revelation}',
+                      style: Theme.of(context).textTheme.labelSmall
+                          ?.copyWith(color: palette.textDim),
+                    ),
+                    if (surah.bismillahBefore && surah.number != 9) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
+                        style: RafiqText.quranSmall.copyWith(
+                          color: palette.goldMuted,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const OrnamentalDivider(),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.only(bottom: 16),
+                    itemCount: surah.verses.length,
+                    itemBuilder: (context, index) {
+                      final verse = surah.verses[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: _AyahRow(
+                          key: _verseKeys.putIfAbsent(
+                            verse.number,
+                            GlobalKey.new,
+                          ),
+                          number: verse.number,
+                          text: verse.text,
+                          translation: verse.translation,
+                          isBookmarked: state.isBookmarked(
+                            surah.number,
+                            verse.number,
+                          ),
+                          isPlaying: state.playingAyah == verse.number &&
+                              state.audioPhase != QuranAudioPhase.idle,
+                          onBookmark: () {
+                            unawaited(
+                              state.toggleBookmark(
+                                surah.number,
+                                verse.number,
+                              ),
+                            );
+                          },
+                          onPlay: () {
+                            unawaited(state.playAyah(verse.number));
+                          },
+                          onSelect: () {
+                            state.onAyahVisible(
+                              surah.number,
+                              verse.number,
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+              _AudioBar(
+                statusText: state.audioStatusText,
+                isPlaying: state.audioPhase == QuranAudioPhase.playing,
+                onToggle: () {
+                  unawaited(state.togglePlayPause());
+                },
+                onNext: () {
+                  unawaited(state.skipNext());
+                },
+                onPrevious: () {
+                  unawaited(state.skipPrevious());
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = _state;
     if (state == null) {
       return const SizedBox.shrink();
     }
-    final palette = RafiqThemeScope.of(context);
     final surah = state.surah;
     final message = _visibleMessage;
     return Container(
@@ -333,111 +500,7 @@ class _QuranScreenState extends State<QuranScreen> {
                 const _LoadingOrnament(label: 'جارٍ فتح المصحف')
               else if (state.error != null)
                 _ErrorOrnament(message: state.error!, onRetry: state.retry)
-              else if (surah != null)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      children: [
-                        SegmentedPill(
-                          options: const ['المصحف', 'الترجمة'],
-                          selectedIndex: state.mode,
-                          onSelected: state.setMode,
-                        ),
-                        const SizedBox(height: 12),
-                        Column(
-                          children: [
-                            Text(
-                              'سورة ${surah.name}',
-                              style: RafiqText.ornamentTitle.copyWith(
-                                color: palette.gold,
-                              ),
-                            ),
-                            Text(
-                              '${surah.versesCount} آية • ${surah.revelation}',
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(color: palette.textDim),
-                            ),
-                            if (surah.bismillahBefore && surah.number != 9) ...[
-                              const SizedBox(height: 6),
-                              Text(
-                                'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
-                                style: RafiqText.quranSmall.copyWith(
-                                  color: palette.goldMuted,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        const OrnamentalDivider(),
-                        const SizedBox(height: 6),
-                        Expanded(
-                          child: ListView.builder(
-                            controller: _scrollController,
-                            padding: const EdgeInsets.only(bottom: 16),
-                            itemCount: surah.verses.length,
-                            itemBuilder: (context, index) {
-                              final verse = surah.verses[index];
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: _AyahRow(
-                                  key: _verseKeys.putIfAbsent(
-                                    verse.number,
-                                    GlobalKey.new,
-                                  ),
-                                  number: verse.number,
-                                  text: verse.text,
-                                  translation: state.showTranslation
-                                      ? verse.translation
-                                      : null,
-                                  isBookmarked: state.isBookmarked(
-                                    surah.number,
-                                    verse.number,
-                                  ),
-                                  isPlaying:
-                                      state.playingAyah == verse.number &&
-                                      state.audioPhase != QuranAudioPhase.idle,
-                                  onBookmark: () {
-                                    unawaited(
-                                      state.toggleBookmark(
-                                        surah.number,
-                                        verse.number,
-                                      ),
-                                    );
-                                  },
-                                  onPlay: () {
-                                    unawaited(state.playAyah(verse.number));
-                                  },
-                                  onSelect: () {
-                                    state.onAyahVisible(
-                                      surah.number,
-                                      verse.number,
-                                    );
-                                  },
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        _AudioBar(
-                          statusText: state.audioStatusText,
-                          isPlaying:
-                              state.audioPhase == QuranAudioPhase.playing,
-                          onToggle: () {
-                            unawaited(state.togglePlayPause());
-                          },
-                          onNext: () {
-                            unawaited(state.skipNext());
-                          },
-                          onPrevious: () {
-                            unawaited(state.skipPrevious());
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              else if (surah != null) ..._buildReaderBody(context, state, surah),
             ],
           ),
           if (message != null)
