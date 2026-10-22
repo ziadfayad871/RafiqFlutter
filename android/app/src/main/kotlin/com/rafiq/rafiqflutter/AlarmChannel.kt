@@ -10,7 +10,8 @@ import android.content.Intent
 import android.os.Build
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
-import kotlin.math.max
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 class AlarmChannel(private val context: Context) : MethodChannel.MethodCallHandler {
 
@@ -28,11 +29,20 @@ class AlarmChannel(private val context: Context) : MethodChannel.MethodCallHandl
                 val triggerAt = call.argument<Number>("triggerAt")?.toLong() ?: 0L
                 val name = call.argument<String>("prayerName") ?: ""
                 val time = call.argument<String>("prayerTime") ?: ""
-                schedulePrayer(triggerAt, name, time)
+                schedulePrayer(context, triggerAt, name, time)
+                result.success(true)
+            }
+            "configurePrayer" -> {
+                val enabled = call.argument<Boolean>("enabled") ?: false
+                val method = call.argument<String>("method")
+                val latitude = call.argument<Number>("latitude")?.toDouble() ?: 30.0444
+                val longitude = call.argument<Number>("longitude")?.toDouble() ?: 31.2357
+                val zoneId = call.argument<String>("timeZoneId")
+                configurePrayer(context, enabled, method, latitude, longitude, zoneId)
                 result.success(true)
             }
             "cancelPrayer" -> {
-                cancelPrayer()
+                cancelPrayer(context)
                 result.success(true)
             }
             "scheduleFocus" -> {
@@ -60,7 +70,57 @@ class AlarmChannel(private val context: Context) : MethodChannel.MethodCallHandl
         }
     }
 
-    private fun schedulePrayer(triggerAt: Long, prayerName: String, prayerTime: String) {
+    fun configurePrayer(
+        context: Context,
+        enabled: Boolean,
+        method: String?,
+        latitude: Double,
+        longitude: Double,
+        timeZoneId: String?
+    ) {
+        context.getSharedPreferences(PRAYER_PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean("enabled", enabled)
+            .putString("method", method ?: "egyptian")
+            .putLong("lat", latitude.toRawBits())
+            .putLong("lng", longitude.toRawBits())
+            .putString("zone", timeZoneId ?: ZoneId.systemDefault().id)
+            .apply()
+        if (enabled) {
+            scheduleNextPrayer(context)
+        } else {
+            cancelPrayer(context)
+        }
+    }
+
+    fun scheduleNextPrayer(context: Context, graceSeconds: Long = 0L) {
+        val prefs = context.getSharedPreferences(PRAYER_PREFS, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("enabled", false)) {
+            cancelPrayer(context)
+            return
+        }
+        val zone = runCatching {
+            ZoneId.of(prefs.getString("zone", ZoneId.systemDefault().id))
+        }.getOrDefault(ZoneId.systemDefault())
+        val method = CalculationMethod.fromId(prefs.getString("method", "egyptian"))
+        val latitude = Double.fromBits(prefs.getLong("lat", 30.0444.toRawBits()))
+        val longitude = Double.fromBits(prefs.getLong("lng", 31.2357.toRawBits()))
+        val now = LocalDateTime.now(zone).plusSeconds(graceSeconds)
+        val today = PrayerCalculator.calculate(now.toLocalDate(), latitude, longitude, zone, method)
+        val tomorrow = PrayerCalculator.calculate(
+            now.toLocalDate().plusDays(1), latitude, longitude, zone, method
+        )
+        val (prayerName, prayerTime) = PrayerCalculator.nextPrayer(today, now, tomorrow)
+        val triggerAt = prayerTime.atZone(zone).toInstant().toEpochMilli()
+        val formatted = PrayerCalculator.formatTime(prayerTime)
+        schedulePrayer(context, triggerAt, prayerName, formatted)
+    }
+
+    private fun schedulePrayer(
+        context: Context,
+        triggerAt: Long,
+        prayerName: String,
+        prayerTime: String
+    ) {
         context.getSharedPreferences(PRAYER_PREFS, Context.MODE_PRIVATE).edit()
             .putLong("trigger_at", triggerAt)
             .putString("prayer_name", prayerName)
@@ -78,14 +138,14 @@ class AlarmChannel(private val context: Context) : MethodChannel.MethodCallHandl
         )
         val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
         alarmManager.cancel(pending)
-        if (canScheduleExact()) {
+        if (canScheduleExact(context)) {
             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
         } else {
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
         }
     }
 
-    private fun cancelPrayer() {
+    private fun cancelPrayer(context: Context) {
         context.getSharedPreferences(PRAYER_PREFS, Context.MODE_PRIVATE).edit()
             .remove("trigger_at")
             .apply()
@@ -130,17 +190,19 @@ class AlarmChannel(private val context: Context) : MethodChannel.MethodCallHandl
         )
     }
 
-    private fun canScheduleExact(): Boolean {
+    private fun canScheduleExact(ctx: Context = context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-        return context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
+        return ctx.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() == true
     }
 }
 
 class PrayerAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        RafiqNotifications.ensureChannels(context)
         val name = intent.getStringExtra("prayer_name") ?: "الصلاة"
         val time = intent.getStringExtra("prayer_time") ?: ""
         RafiqNotifications.showPrayer(context, name, time)
+        AlarmChannel(context).scheduleNextPrayer(context, graceSeconds = 60L)
     }
 }
 
@@ -160,31 +222,7 @@ class BootReceiver : BroadcastReceiver() {
             else -> return
         }
         RafiqNotifications.ensureChannels(context)
-        val prayer = context.getSharedPreferences(AlarmChannel.PRAYER_PREFS, Context.MODE_PRIVATE)
-        val triggerAt = prayer.getLong("trigger_at", 0L)
-        if (triggerAt > System.currentTimeMillis()) {
-            val name = prayer.getString("prayer_name", "") ?: ""
-            val time = prayer.getString("prayer_time", "") ?: ""
-            val channel = AlarmChannel(context)
-            val pending = PendingIntent.getBroadcast(
-                context,
-                AlarmChannel.PRAYER_REQUEST,
-                Intent(context, PrayerAlarmReceiver::class.java).apply {
-                    putExtra("prayer_name", name)
-                    putExtra("prayer_time", time)
-                },
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            val alarmManager = context.getSystemService(AlarmManager::class.java)
-            alarmManager?.let { manager ->
-                manager.cancel(pending)
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || manager.canScheduleExactAlarms()) {
-                    manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
-                } else {
-                    manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
-                }
-            }
-        }
+        AlarmChannel(context).scheduleNextPrayer(context)
         val focus = context.getSharedPreferences(AlarmChannel.FOCUS_PREFS, Context.MODE_PRIVATE)
         val endAt = focus.getLong("end_at", 0L)
         if (endAt > System.currentTimeMillis()) {

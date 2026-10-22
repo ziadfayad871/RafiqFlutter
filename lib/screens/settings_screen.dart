@@ -89,14 +89,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _toggleNotifications(bool enabled) async {
-    final prayer = prayerStateOf(context);
-    final next = prayer?.next;
-    await _state.setNotificationsEnabled(
-      enabled,
-      triggerAt: next?.prayer.time,
-      prayerName: next?.prayer.name,
-      prayerTime: next?.prayer.formattedTime,
-    );
+    await _state.setNotificationsEnabled(enabled);
   }
 
   Future<void> _openMethodSheet() async {

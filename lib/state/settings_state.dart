@@ -100,47 +100,27 @@ class SettingsState extends ChangeNotifier {
     _show('تم تحديث مدينة الحساب إلى ${city.name}');
   }
 
-  Future<void> setNotificationsEnabled(
-    bool enabled, {
-    DateTime? triggerAt,
-    String? prayerName,
-    String? prayerTime,
-  }) async {
+  Future<void> setNotificationsEnabled(bool enabled) async {
     await appState.setPrayerNotifications(enabled);
-    if (!enabled) {
-      _scheduledAlarmKey = null;
-      await AlarmBridge.cancelPrayer();
-      return;
-    }
-    if (triggerAt == null) return;
-    _scheduledAlarmKey = '$prayerName-${triggerAt.millisecondsSinceEpoch}';
-    await AlarmBridge.schedulePrayer(
-      triggerAt: triggerAt,
-      prayerName: prayerName ?? 'الصلاة',
-      prayerTime: prayerTime ?? '',
-    );
+    await _applyPrayerAlarm();
   }
 
-  Future<void> syncPrayerAlarm({
-    required bool enabled,
-    required DateTime? triggerAt,
-    required String prayerName,
-    required String prayerTime,
-  }) async {
-    if (!enabled) {
-      if (_scheduledAlarmKey == null) return;
-      _scheduledAlarmKey = null;
-      await AlarmBridge.cancelPrayer();
-      return;
-    }
-    if (triggerAt == null) return;
-    final key = '$prayerName-${triggerAt.millisecondsSinceEpoch}';
+  Future<void> syncPrayerAlarm() async {
+    await _applyPrayerAlarm();
+  }
+
+  Future<void> _applyPrayerAlarm() async {
+    final preferences = appState.preferences;
+    final key = '${preferences.prayerNotifications}|'
+        '${preferences.calculationMethod}|'
+        '${preferences.latitude}|${preferences.longitude}';
     if (key == _scheduledAlarmKey) return;
     _scheduledAlarmKey = key;
-    await AlarmBridge.schedulePrayer(
-      triggerAt: triggerAt,
-      prayerName: prayerName,
-      prayerTime: prayerTime,
+    await AlarmBridge.configurePrayer(
+      enabled: preferences.prayerNotifications,
+      calculationMethod: preferences.calculationMethod,
+      latitude: preferences.latitude,
+      longitude: preferences.longitude,
     );
   }
 

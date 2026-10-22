@@ -48,14 +48,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
   }
 
   Future<void> _toggleNotifications(bool enabled) async {
-    final prayer = PrayerScope.of(context);
-    final next = prayer.next;
-    await _settings.setNotificationsEnabled(
-      enabled,
-      triggerAt: next?.prayer.time,
-      prayerName: next?.prayer.name,
-      prayerTime: next?.prayer.formattedTime,
-    );
+    await _settings.setNotificationsEnabled(enabled);
   }
 
   Future<void> _openMethodSheet() async {
@@ -112,12 +105,7 @@ class _PrayerScreenState extends State<PrayerScreen> {
     final notificationsEnabled = appState.preferences.prayerNotifications;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _settings.syncPrayerAlarm(
-        enabled: notificationsEnabled,
-        triggerAt: next?.prayer.time,
-        prayerName: next?.prayer.name ?? 'الصلاة',
-        prayerTime: next?.prayer.formattedTime ?? '',
-      );
+      _settings.syncPrayerAlarm();
     });
 
     return Container(

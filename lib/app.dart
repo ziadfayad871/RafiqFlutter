@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'data/preferences.dart';
 import 'data/prayer_calculator.dart';
+import 'platform/bridges.dart';
 import 'screens/adhkar_screen.dart';
 import 'screens/assistant_screen.dart';
 import 'screens/apps_screen.dart';
@@ -143,6 +146,7 @@ class _RafiqShellState extends State<RafiqShell> {
   final PrayerState _prayer = PrayerState();
   final Set<String> _visited = {'home'};
   String _route = 'home';
+  String? _alarmConfigKey;
 
   @override
   void initState() {
@@ -169,6 +173,22 @@ class _RafiqShellState extends State<RafiqShell> {
         locationLabel: preferences.locationLabel,
       );
     }
+  }
+
+  void _syncPrayerAlarm(UserPreferences preferences) {
+    final key = '${preferences.prayerNotifications}|'
+        '${preferences.calculationMethod}|'
+        '${preferences.latitude}|${preferences.longitude}';
+    if (key == _alarmConfigKey) return;
+    _alarmConfigKey = key;
+    unawaited(
+      AlarmBridge.configurePrayer(
+        enabled: preferences.prayerNotifications,
+        calculationMethod: preferences.calculationMethod,
+        latitude: preferences.latitude,
+        longitude: preferences.longitude,
+      ),
+    );
   }
 
   void _select(String route) {
@@ -249,6 +269,7 @@ class _RafiqShellState extends State<RafiqShell> {
     final media = MediaQuery.of(context);
     final appState = AppScope.of(context);
     _syncPrayer(appState.preferences);
+    _syncPrayerAlarm(appState.preferences);
     final visibleTabs =
         tabRoutes.where((route) => _visited.contains(route)).toList();
     return PrayerScope(

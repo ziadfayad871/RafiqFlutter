@@ -101,6 +101,20 @@ class AlarmBridge {
     });
   }
 
+  static Future<void> configurePrayer({
+    required bool enabled,
+    required String calculationMethod,
+    required double latitude,
+    required double longitude,
+  }) async {
+    await _channel.invokeMethod<bool>('configurePrayer', {
+      'enabled': enabled,
+      'method': calculationMethod,
+      'latitude': latitude,
+      'longitude': longitude,
+    });
+  }
+
   static Future<void> cancelPrayer() async {
     await _channel.invokeMethod<bool>('cancelPrayer');
   }
