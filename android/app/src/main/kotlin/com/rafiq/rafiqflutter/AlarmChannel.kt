@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.net.Uri
 import android.os.Build
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -242,8 +244,9 @@ class BootReceiver : BroadcastReceiver() {
 }
 
 object RafiqNotifications {
-    const val PRAYER_CHANNEL = "prayer_times"
+    const val PRAYER_CHANNEL = "prayer_times_adhan_v1"
     const val FOCUS_CHANNEL = "focus_sessions"
+    private const val LEGACY_PRAYER_CHANNEL = "prayer_times"
     private const val PRAYER_NOTIFICATION_ID = 2001
     private const val FOCUS_NOTIFICATION_ID = 3001
 
@@ -253,10 +256,18 @@ object RafiqNotifications {
         val prayer = NotificationChannel(
             PRAYER_CHANNEL,
             "مواقيت الصلاة",
-            NotificationManager.IMPORTANCE_DEFAULT
+            NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "تنبيه عند دخول وقت كل صلاة"
+            description = "أذان وتنبيه عند دخول وقت كل صلاة"
             enableVibration(true)
+            vibrationPattern = longArrayOf(0, 400, 300, 400)
+            setSound(
+                Uri.parse("android.resource://${context.packageName}/${R.raw.adhan}"),
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
         }
         val focus = NotificationChannel(
             FOCUS_CHANNEL,
@@ -267,6 +278,7 @@ object RafiqNotifications {
             enableVibration(true)
         }
         manager.createNotificationChannels(listOf(prayer, focus))
+        manager.deleteNotificationChannel(LEGACY_PRAYER_CHANNEL)
     }
 
     fun showPrayer(context: Context, prayerName: String, time: String) {
@@ -275,6 +287,7 @@ object RafiqNotifications {
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle("حان وقت صلاة $prayerName")
             .setContentText("موعد الصلاة $time — تقبل الله طاعتك")
+            .setCategory(android.app.Notification.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(openAppIntent(context))
             .build()

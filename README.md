@@ -56,3 +56,7 @@ flutter build apk --release
 - **أندرويد ٧+** (API 26).
 - الإشعارات الدقيقة تحتاج إذن «المنبّهات الدقيقة» من إعدادات النظام.
 - iOS غير مدعوم كـ launcher (آبل لا تسمح باستبدال شاشة البداية) — الكود قابل للتوسّع لنسخة iOS مرافقة.
+
+## الرخص
+
+الكود مفتوح المصدر. الخطوط: [Amiri](https://fonts.google.com/specimen/Amiri) و[Tajawal](https://fonts.google.com/specimen/Tajawal) — رخصة SIL OFL. تسجيل الأذان: «The Adhan — Muslim Call to Prayer» بأداء Aaqib Azeez، مرفوع بواسطة Atcovi على [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:The_Adhan_-_Muslim_Call_to_Prayer_-_Aaqib_Azeez.mp3) تحت رخصة [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
