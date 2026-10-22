@@ -270,8 +270,8 @@ class _InstalledAppTile extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _AppIconImage(icon: app.icon, label: app.label, iconSize: 58),
-            const SizedBox(height: 7),
+            _AppIconImage(icon: app.icon, label: app.label, iconSize: 56),
+            const SizedBox(height: 4),
             Text(
               app.label,
               maxLines: 1,

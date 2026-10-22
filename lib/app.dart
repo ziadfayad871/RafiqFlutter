@@ -101,6 +101,37 @@ class _RafiqAppState extends State<RafiqApp> {
 
 const tabRoutes = ['home', 'prayer', 'quran', 'adhkar', 'settings'];
 
+class _FullScreen extends StatelessWidget {
+  const _FullScreen({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final palette = paletteFor(AppScope.of(context).themeId);
+    return RafiqThemeScope(
+      palette: palette,
+      themeId: AppScope.of(context).themeId,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            const RafiqBackground(),
+            Padding(
+              padding: EdgeInsets.only(
+                top: media.padding.top,
+                bottom: media.padding.bottom,
+              ),
+              child: child,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class RafiqShell extends StatefulWidget {
   const RafiqShell({super.key});
 
@@ -110,6 +141,7 @@ class RafiqShell extends StatefulWidget {
 
 class _RafiqShellState extends State<RafiqShell> {
   final PrayerState _prayer = PrayerState();
+  final Set<String> _visited = {'home'};
   String _route = 'home';
 
   @override
@@ -141,13 +173,19 @@ class _RafiqShellState extends State<RafiqShell> {
 
   void _select(String route) {
     if (_route == route) return;
-    setState(() => _route = route);
+    setState(() {
+      _visited.add(route);
+      _route = route;
+    });
   }
 
   void _navigate(String route, {bool fromPushedRoute = false}) {
     if (tabRoutes.contains(route)) {
       if (fromPushedRoute) Navigator.of(context).pop();
-      setState(() => _route = route);
+      setState(() {
+        _visited.add(route);
+        _route = route;
+      });
       return;
     }
     Navigator.of(context).push(
@@ -155,21 +193,51 @@ class _RafiqShellState extends State<RafiqShell> {
     );
   }
 
+  Widget _buildTab(String route) {
+    switch (route) {
+      case 'home':
+        return HomeScreen(onNavigate: _navigate);
+      case 'prayer':
+        return const PrayerScreen();
+      case 'quran':
+        return const QuranScreen();
+      case 'adhkar':
+        return const AdhkarScreen();
+      case 'settings':
+        return SettingsScreen(
+          themeId: AppScope.of(context).themeId,
+          onThemeChanged: AppScope.of(context).setTheme,
+        );
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
   Widget _fullScreenRoute(String route) {
     switch (route) {
       case 'apps':
-        return AppsScreen(
-          onBack: () => Navigator.of(context).pop(),
-          onOpenDestination: (target) => _navigate(target, fromPushedRoute: true),
+        return _FullScreen(
+          child: AppsScreen(
+            onBack: () => Navigator.of(context).pop(),
+            onOpenDestination: (target) =>
+                _navigate(target, fromPushedRoute: true),
+          ),
         );
       case 'focus':
-        return FocusScreen(onBack: () => Navigator.of(context).pop());
+        return _FullScreen(
+          child: FocusScreen(onBack: () => Navigator.of(context).pop()),
+        );
       case 'tasks':
-        return TasksScreen(onBack: () => Navigator.of(context).pop());
+        return _FullScreen(
+          child: TasksScreen(onBack: () => Navigator.of(context).pop()),
+        );
       case 'assistant':
-        return AssistantScreen(
-          onBack: () => Navigator.of(context).pop(),
-          onNavigate: (target) => _navigate(target, fromPushedRoute: true),
+        return _FullScreen(
+          child: AssistantScreen(
+            onBack: () => Navigator.of(context).pop(),
+            onNavigate: (target) =>
+                _navigate(target, fromPushedRoute: true),
+          ),
         );
       default:
         return const SizedBox.shrink();
@@ -181,6 +249,8 @@ class _RafiqShellState extends State<RafiqShell> {
     final media = MediaQuery.of(context);
     final appState = AppScope.of(context);
     _syncPrayer(appState.preferences);
+    final visibleTabs =
+        tabRoutes.where((route) => _visited.contains(route)).toList();
     return PrayerScope(
       state: _prayer,
       child: Scaffold(
@@ -195,21 +265,14 @@ class _RafiqShellState extends State<RafiqShell> {
               ),
               child: Column(
                 children: [
-                  Expanded(
-                    child: IndexedStack(
-                      index: tabRoutes.indexOf(_route),
-                      children: [
-                        HomeScreen(onNavigate: _navigate),
-                        const PrayerScreen(),
-                        const QuranScreen(),
-                        const AdhkarScreen(),
-                        SettingsScreen(
-                          themeId: AppScope.of(context).themeId,
-                          onThemeChanged: AppScope.of(context).setTheme,
-                        ),
-                      ],
-                    ),
+                Expanded(
+                  child: IndexedStack(
+                    index: visibleTabs.indexOf(_route),
+                    children: [
+                      for (final route in visibleTabs) _buildTab(route),
+                    ],
                   ),
+                ),
                   RafiqBottomBar(
                     selectedRoute: _route,
                     onNavigate: _select,

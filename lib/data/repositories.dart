@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
 class QuranVerse {
@@ -63,17 +64,21 @@ class QuranRepository {
     final cached = _cached;
     if (cached != null) return cached;
     final raw = await rootBundle.loadString('assets/quran.json');
-    final decoded = json.decode(raw) as Map<String, dynamic>;
-    final data = QuranData(
-      source: (decoded['source'] as String?) ?? '',
-      translationSource: (decoded['translationSource'] as String?) ?? '',
-      surahs: ((decoded['surahs'] as List<dynamic>?) ?? const [])
-          .map((s) => QuranSurah.fromJson(s as Map<String, dynamic>))
-          .toList(),
-    );
+    final data = await compute(parseQuranData, raw);
     _cached = data;
     return data;
   }
+}
+
+QuranData parseQuranData(String raw) {
+  final decoded = json.decode(raw) as Map<String, dynamic>;
+  return QuranData(
+    source: (decoded['source'] as String?) ?? '',
+    translationSource: (decoded['translationSource'] as String?) ?? '',
+    surahs: ((decoded['surahs'] as List<dynamic>?) ?? const [])
+        .map((s) => QuranSurah.fromJson(s as Map<String, dynamic>))
+        .toList(),
+  );
 }
 
 class AdhkarItem {
