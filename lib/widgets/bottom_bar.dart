@@ -15,7 +15,7 @@ class BottomItem {
 const bottomItems = [
   BottomItem('home', 'الرئيسية', RafiqIcons.home),
   BottomItem('prayer', 'الصلاة', RafiqIcons.mosque),
-  BottomItem('quran', 'quran', RafiqIcons.bookOpen),
+  BottomItem('quran', 'القرآن', RafiqIcons.bookOpen),
   BottomItem('adhkar', 'الأذكار', RafiqIcons.prayerBeads),
   BottomItem('settings', 'الإعدادات', RafiqIcons.settings),
 ];
