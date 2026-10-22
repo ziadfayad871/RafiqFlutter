@@ -55,7 +55,7 @@ class RafiqTopBar extends StatelessWidget {
             ),
             if (onBack != null)
               Positioned(
-                right: 0,
+                left: 0,
                 child: RoundIconButton(
                   icon: RafiqIcons.arrowLeft,
                   size: 38,
@@ -64,7 +64,7 @@ class RafiqTopBar extends StatelessWidget {
               ),
             if (actions != null)
               Positioned(
-                left: 0,
+                right: 0,
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

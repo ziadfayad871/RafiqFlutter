@@ -8,12 +8,14 @@ class RafiqCard extends StatelessWidget {
     super.key,
     this.shapeRadius = 22,
     this.contentPadding = const EdgeInsets.all(18),
+    this.borderColor,
     this.onTap,
     required this.child,
   });
 
   final double shapeRadius;
   final EdgeInsets contentPadding;
+  final Color? borderColor;
   final VoidCallback? onTap;
   final Widget child;
 
@@ -31,7 +33,7 @@ class RafiqCard extends StatelessWidget {
             palette.surface.withValues(alpha: 0.96),
           ],
         ),
-        border: Border.all(color: palette.borderSoft),
+        border: Border.all(color: borderColor ?? palette.borderSoft),
       ),
       child: Material(
         color: Colors.transparent,

@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:rafiqflutter/app.dart';
 import 'package:rafiqflutter/data/prayer_calculator.dart';
-import 'package:rafiqflutter/main.dart';
 
 void main() {
   test('cairo prayer times match reference values', () {
@@ -49,8 +50,9 @@ void main() {
   });
 
   testWidgets('app renders home screen', (WidgetTester tester) async {
+    SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(const RafiqApp());
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 800));
     expect(find.text('رفيق'), findsWidgets);
   });
 }

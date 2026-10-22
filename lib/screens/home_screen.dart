@@ -1,8 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
-import '../data/prayer_calculator.dart';
+import '../app.dart';
+import '../platform/bridges.dart';
+import '../state/app_state.dart';
+import '../theme/palette.dart';
 import '../theme/rafiq_theme.dart';
 import '../theme/typography.dart';
 import '../util/arabic_formatters.dart';
@@ -10,83 +11,19 @@ import '../widgets/components.dart';
 import '../widgets/dawn_mosque_scene.dart';
 import '../widgets/rafiq_icons.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key, required this.onNavigate});
 
   final ValueChanged<String> onNavigate;
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  static const _latitude = 30.0444;
-  static const _longitude = 31.2357;
-
-  Timer? _timer;
-  DateTime _now = DateTime.now();
-  NextPrayerInfo? _next;
-
-  @override
-  void initState() {
-    super.initState();
-    _refresh();
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _refresh());
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  void _refresh() {
-    final now = DateTime.now();
-    final offset = DateTime(now.year, now.month, now.day, 12).timeZoneOffset;
-    final today = PrayerCalculator.calculate(
-      date: now,
-      latitude: _latitude,
-      longitude: _longitude,
-      offset: offset,
-      method: CalculationMethod.egyptian,
-    );
-    final tomorrow = PrayerCalculator.calculate(
-      date: now.add(const Duration(days: 1)),
-      latitude: _latitude,
-      longitude: _longitude,
-      offset: offset,
-      method: CalculationMethod.egyptian,
-    );
-    final yesterday = PrayerCalculator.calculate(
-      date: now.subtract(const Duration(days: 1)),
-      latitude: _latitude,
-      longitude: _longitude,
-      offset: offset,
-      method: CalculationMethod.egyptian,
-    );
-    final next = PrayerCalculator.nextPrayer(
-      today: today,
-      now: now,
-      tomorrow: tomorrow,
-      yesterday: yesterday,
-    );
-    setState(() {
-      _now = now;
-      _next = next;
-    });
-  }
-
-  String get _greeting {
-    final hour = _now.hour;
-    if (hour >= 4 && hour <= 11) return 'صباح الخير';
-    if (hour >= 12 && hour <= 16) return 'طاب نهارك';
-    if (hour >= 17 && hour <= 20) return 'مساء الخير';
-    return 'طابت ليلتك';
-  }
-
-  @override
   Widget build(BuildContext context) {
     final palette = RafiqThemeScope.of(context);
+    final appState = AppScope.of(context);
+    final prayer = PrayerScope.of(context);
+    final now = prayer.now;
+    final next = prayer.next;
+
     return Container(
       color: Colors.transparent,
       child: SingleChildScrollView(
@@ -96,30 +33,33 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _GreetingHeader(
-                greeting: _greeting,
-                displayName: 'رفيق',
-                locationLabel: 'القاهرة',
-                onOpenApps: () => widget.onNavigate('apps'),
+                greeting: _greeting(now.hour),
+                displayName: appState.preferences.displayName,
+                locationLabel: appState.preferences.locationLabel,
+                onOpenApps: () {
+                  appState.click();
+                  onNavigate('apps');
+                },
               ),
               const SizedBox(height: 14),
               Column(
                 children: [
                   Text(
                     toArabicDigits(
-                      '${_now.hour.toString().padLeft(2, '0')}:${_now.minute.toString().padLeft(2, '0')}',
+                      '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}',
                     ),
                     style: RafiqText.clock.copyWith(color: palette.textPrimary),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    formatGregorianDate(_now),
+                    formatGregorianDate(now),
                     style: Theme.of(context)
                         .textTheme
                         .bodyMedium
                         ?.copyWith(color: palette.textSecondary),
                   ),
                   Text(
-                    formatHijriDate(_now),
+                    formatHijriDate(now),
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
@@ -139,14 +79,17 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 18),
               _NextPrayerCard(
-                name: _next?.prayer.name,
-                time: _next?.prayer.formattedTime,
-                countdown: _next == null
+                name: next?.prayer.name,
+                time: next?.prayer.formattedTime,
+                countdown: next == null
                     ? null
-                    : formatCountdown(_next!.remaining) +
-                        (_next!.tomorrow ? ' (غدًا)' : ''),
-                progress: _next?.progress ?? 0,
-                onTap: () => widget.onNavigate('prayer'),
+                    : formatCountdown(next.remaining) +
+                        (next.tomorrow ? ' (غدًا)' : ''),
+                progress: next?.progress ?? 0,
+                onTap: () {
+                  appState.click();
+                  onNavigate('prayer');
+                },
               ),
               const SizedBox(height: 20),
               const SectionHeader(title: 'عباداتك اليوم'),
@@ -157,35 +100,50 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: BuiltinIconTile(
                       icon: RafiqIcons.quranBook,
                       label: 'القرآن',
-                      onTap: () => widget.onNavigate('quran'),
+                      onTap: () {
+                        appState.click();
+                        onNavigate('quran');
+                      },
                     ),
                   ),
                   Expanded(
                     child: BuiltinIconTile(
                       icon: RafiqIcons.prayerBeads,
                       label: 'الأذكار',
-                      onTap: () => widget.onNavigate('adhkar'),
+                      onTap: () {
+                        appState.click();
+                        onNavigate('adhkar');
+                      },
                     ),
                   ),
                   Expanded(
                     child: BuiltinIconTile(
                       icon: RafiqIcons.tasks,
                       label: 'المهام',
-                      onTap: () => widget.onNavigate('tasks'),
+                      onTap: () {
+                        appState.click();
+                        onNavigate('tasks');
+                      },
                     ),
                   ),
                   Expanded(
                     child: BuiltinIconTile(
                       icon: RafiqIcons.focus,
                       label: 'التركيز',
-                      onTap: () => widget.onNavigate('focus'),
+                      onTap: () {
+                        appState.click();
+                        onNavigate('focus');
+                      },
                     ),
                   ),
                   Expanded(
                     child: BuiltinIconTile(
                       icon: RafiqIcons.sparkle,
                       label: 'مساعد رفيق',
-                      onTap: () => widget.onNavigate('assistant'),
+                      onTap: () {
+                        appState.click();
+                        onNavigate('assistant');
+                      },
                     ),
                   ),
                 ],
@@ -200,6 +158,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  static String _greeting(int hour) {
+    if (hour >= 4 && hour <= 11) return 'صباح الخير';
+    if (hour >= 12 && hour <= 16) return 'طاب نهارك';
+    if (hour >= 17 && hour <= 20) return 'مساء الخير';
+    return 'طابت ليلتك';
   }
 }
 
@@ -390,60 +355,93 @@ class _NextPrayerCard extends StatelessWidget {
 class _DockRow extends StatelessWidget {
   const _DockRow();
 
-  static const _dock = [
-    ('الهاتف', RafiqIcons.phone),
-    ('الرسائل', RafiqIcons.message),
-    ('المتصفح', RafiqIcons.browser),
-    ('الكاميرا', RafiqIcons.camera),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final palette = RafiqThemeScope.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: palette.surface.withValues(alpha: 0.55),
-        border: Border.all(color: palette.borderSoft),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: _dock.map((entry) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(15),
-                    color: palette.surfaceHigh,
-                    border: Border.all(color: palette.borderSoft),
-                  ),
-                  child: Center(
-                    child: RafiqIcon(entry.$2, size: 22, color: palette.gold),
-                  ),
+    final appState = AppScope.of(context);
+    return _DockContent(
+      palette: palette,
+      onOpen: (kind) {
+        appState.click();
+        LauncherBridge.launchDock(kind);
+      },
+    );
+  }
+}
+
+class _DockContent extends StatelessWidget {
+  const _DockContent({required this.palette, required this.onOpen});
+
+  final RafiqPalette palette;
+  final ValueChanged<String> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder(
+      future: LauncherBridge.dockApps(),
+      builder: (context, snapshot) {
+        final apps = snapshot.data ?? const [];
+        if (apps.isEmpty) {
+          return const SizedBox(height: 68);
+        }
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            color: palette.surface.withValues(alpha: 0.55),
+            border: Border.all(color: palette.borderSoft),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: apps.map((app) {
+              final icon = switch (app.kind) {
+                'phone' => RafiqIcons.phone,
+                'messages' => RafiqIcons.message,
+                'browser' => RafiqIcons.browser,
+                _ => RafiqIcons.camera,
+              };
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(15),
+                        color: palette.surfaceHigh,
+                        border: Border.all(color: palette.borderSoft),
+                      ),
+                      child: InkWell(
+                        onTap: () => onOpen(app.kind),
+                        borderRadius: BorderRadius.circular(15),
+                        splashColor: Colors.transparent,
+                        highlightColor: Colors.transparent,
+                        child: Center(
+                          child: RafiqIcon(icon, size: 22, color: palette.gold),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      app.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontFamily: 'Tajawal',
+                        fontSize: 9,
+                        height: 13 / 9,
+                        color: palette.textDim,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  entry.$1,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: 'Tajawal',
-                    fontSize: 9,
-                    height: 13 / 9,
-                    color: palette.textDim,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
+              );
+            }).toList(),
+          ),
+        );
+      },
     );
   }
 }
